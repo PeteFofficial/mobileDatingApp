@@ -50,8 +50,8 @@ export const LoginScreen = ({ navigation }) => {
       // Authenticate with Firebase
       await signInWithEmailAndPassword(auth, formData.email, formData.password);
       
-      // If successful, navigate to Home screen
-      navigation.navigate('Home');
+      // If successful, navigation happens automatically due to auth state listener
+      // We don't need to manually navigate
     } catch (error) {
       // Handle authentication errors
       let errorMessage = 'An error occurred during sign in';

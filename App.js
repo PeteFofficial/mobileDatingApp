@@ -1,22 +1,36 @@
 import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './src/config/firebase';
+import { Ionicons } from '@expo/vector-icons';
 
 // Import Auth Screens
 import { LoginScreen } from './src/screens/Auth/LoginScreen';
 import { RegisterScreen } from './src/screens/Auth/RegisterScreen';
 import { ForgotPasswordScreen } from './src/screens/Auth/ForgotPasswordScreen';
 
+// Import App Screens
+import { DiscoveryScreen } from './src/screens/Discovery/DiscoveryScreen';
+import { MatchesScreen } from './src/screens/Matches/MatchesScreen';
+import { MessagesScreen } from './src/screens/MessagesScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { ConversationScreen } from './src/screens/Conversation/ConversationScreen';
+import { FiltersScreen } from './src/screens/Discovery/FiltersScreen';
+
 // Welcome Screen Component
 function WelcomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar style="auto" />
+      <Image
+        source={require('./assets/icon.png')}
+        style={{ width: 80, height: 80, marginBottom: 20 }}
+      />
       <Text style={styles.title}>MeaningfulDates</Text>
       <Text style={styles.subtitle}>Quality Over Quantity</Text>
       <Text style={styles.description}>
@@ -32,47 +46,59 @@ function WelcomeScreen({ navigation }) {
   );
 }
 
-// Home Screen Component
-function HomeScreen({ navigation }) {
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // Navigation will happen automatically due to the auth state listener
-    } catch (error) {
-      console.error('Error signing out: ', error);
-    }
-  };
+const Tab = createBottomTabNavigator();
 
+// Main Tab Navigator
+function MainTabNavigator() {
   return (
-    <View style={styles.container}>
-      <StatusBar style="auto" />
-      <Text style={styles.title}>Welcome to MeaningfulDates</Text>
-      <Text style={styles.description}>
-        This is where you'll find quality matches who are looking for meaningful connections.
-      </Text>
-      <View style={styles.featureContainer}>
-        <Text style={styles.featureTitle}>One Conversation</Text>
-        <Text style={styles.featureText}>Focus on getting to know one person at a time</Text>
-      </View>
-      <View style={styles.featureContainer}>
-        <Text style={styles.featureTitle}>Quality Matches</Text>
-        <Text style={styles.featureText}>We show you people who are truly compatible with you</Text>
-      </View>
-      <View style={styles.featureContainer}>
-        <Text style={styles.featureTitle}>No Time Wasters</Text>
-        <Text style={styles.featureText}>Our system identifies people who are genuinely interested</Text>
-      </View>
-      <TouchableOpacity 
-        style={[styles.button, styles.logoutButton]}
-        onPress={handleLogout}
-      >
-        <Text style={styles.buttonText}>Logout</Text>
-      </TouchableOpacity>
-    </View>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Discover') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'Matches') {
+            iconName = focused ? 'heart' : 'heart-outline';
+          } else if (route.name === 'Messages') {
+            iconName = focused ? 'chatbubble' : 'chatbubble-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#8B5CF6',
+        tabBarInactiveTintColor: '#6B7280',
+        headerShown: false,
+        tabBarStyle: {
+          height: 55,
+          paddingBottom: 5,
+          paddingTop: 5,
+        },
+        tabBarShowLabel: false,
+      })}
+    >
+      <Tab.Screen name="Discover" component={DiscoveryScreen} />
+      <Tab.Screen name="Matches" component={MatchesScreen} />
+      <Tab.Screen name="Messages" component={MessagesScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
   );
 }
 
 const Stack = createStackNavigator();
+
+// Main Stack Navigator
+function MainStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+      <Stack.Screen name="Conversation" component={ConversationScreen} />
+      <Stack.Screen name="Filters" component={FiltersScreen} />
+    </Stack.Navigator>
+  );
+}
 
 export default function App() {
   const [initializing, setInitializing] = useState(true);
@@ -92,7 +118,13 @@ export default function App() {
   if (initializing) {
     return (
       <View style={styles.container}>
-        <Text>Loading...</Text>
+        <StatusBar style="auto" />
+        <Image
+          source={require('./assets/icon.png')}
+          style={{ width: 80, height: 80, marginBottom: 20 }}
+        />
+        <Text style={styles.title}>MeaningfulDates</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -102,7 +134,7 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           // User is signed in
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Main" component={MainStackNavigator} />
         ) : (
           // User is not signed in
           <>
@@ -181,5 +213,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     lineHeight: 22,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
   },
 });

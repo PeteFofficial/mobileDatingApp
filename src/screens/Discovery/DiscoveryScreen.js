@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions, Animated, PanResponder } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 
@@ -17,7 +17,7 @@ const DEMO_PROFILES = [
     id: '2',
     name: 'James',
     age: 32,
-    bio: 'Photographer who loves to travel. Let's grab coffee and talk about our adventures.',
+    bio: 'Photographer who loves to travel. Let\'s grab coffee and talk about our adventures.',
     image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?ixlib=rb-1.2.1&auto=format&fit=crop&w=1050&q=80',
     distance: '8 miles away',
     compatibility: 92,
@@ -46,9 +46,45 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SWIPE_THRESHOLD = 120;
 
-export const DiscoveryScreen = ({ navigation }) => {
+export const DiscoveryScreen = ({ navigation, route }) => {
+  // Get filters from route params if available
+  const [filters, setFilters] = useState(route.params?.filters || {
+    ageRange: [18, 65],
+    distance: 100,
+    showVerifiedOnly: false,
+    interests: {}
+  });
+  
   const [profiles, setProfiles] = useState(DEMO_PROFILES);
   const position = new Animated.ValueXY();
+
+  // Apply filters when they change
+  useEffect(() => {
+    if (route.params?.filters) {
+      setFilters(route.params.filters);
+      
+      // Apply filters to profiles
+      const filteredProfiles = DEMO_PROFILES.filter(profile => {
+        // Filter by age
+        if (profile.age < route.params.filters.ageRange[0] || 
+            profile.age > route.params.filters.ageRange[1]) {
+          return false;
+        }
+        
+        // Filter by distance (just simulating here)
+        const distanceNum = parseInt(profile.distance.split(' ')[0], 10);
+        if (distanceNum > route.params.filters.distance) {
+          return false;
+        }
+        
+        // Other filters could be applied here
+        
+        return true;
+      });
+      
+      setProfiles(filteredProfiles);
+    }
+  }, [route.params?.filters]);
 
   // Handle what happens when a card is swiped
   const onSwipeComplete = (direction, profileId) => {

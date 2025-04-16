@@ -83,16 +83,8 @@ export const RegisterScreen = ({ navigation }) => {
         displayName: formData.name
       });
       
-      Alert.alert(
-        'Registration Successful', 
-        'Your account has been created successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login')
-          }
-        ]
-      );
+      // No need to navigate to Login - the auth state listener will detect the new user
+      // and automatically navigate to the main app screens
     } catch (error) {
       // Handle registration errors
       let errorMessage = 'An error occurred during registration';

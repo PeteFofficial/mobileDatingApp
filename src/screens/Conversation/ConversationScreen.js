@@ -9,8 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { ConversationProgressBar } from '../../components/ConversationProgressBar';
+import { ConversationBadge } from '../../components/ConversationBadge';
+import { StarRating } from '../../components/StarRating';
+import { StageActionButton } from '../../components/StageActionButton';
 
 // Sample data for a conversation
 const DEMO_USERS = {
@@ -83,12 +88,40 @@ const DEMO_MESSAGES = {
   '4': [],
 };
 
+// Sample conversation data for the 3-day journey
+const DEMO_CONVERSATIONS = {
+  '1': {
+    matchId: '1',
+    users: ['me', '1'],
+    startTime: new Date(Date.now() - 86400000).toISOString(), // Started 1 day ago
+    currentStage: 'VOICE', // TEXT, VOICE, VIDEO, MEETING
+    earnedBadges: ['DEEP_DIVER', 'SHARED_INTEREST', 'QUICK_RESPONDER'],
+    starRating: 2, // 1-4 stars
+    lastInteraction: new Date(Date.now() - 72000000).toISOString(), // 20 hours ago
+    extensionUsed: false,
+    conversationQualityScore: 0.75, // 0-1 score
+    hoursRemaining: 48, // Out of 72 hours
+  }
+};
+
 export const ConversationScreen = ({ route, navigation }) => {
   const { matchId } = route.params || { matchId: '1' }; // Default to first match for demo
-  const match = DEMO_USERS[matchId];
+  const match = DEMO_USERS[matchId] || DEMO_USERS['1']; // Fallback to first demo user if match not found
   
   const [messages, setMessages] = useState(DEMO_MESSAGES[matchId] || []);
   const [inputText, setInputText] = useState('');
+  const [conversationData, setConversationData] = useState(DEMO_CONVERSATIONS[matchId] || {
+    matchId,
+    users: ['me', matchId],
+    startTime: new Date().toISOString(),
+    currentStage: 'TEXT',
+    earnedBadges: [],
+    starRating: 1,
+    lastInteraction: new Date().toISOString(),
+    extensionUsed: false,
+    conversationQualityScore: 0,
+    hoursRemaining: 72,
+  });
   
   const flatListRef = useRef(null);
 
@@ -110,8 +143,47 @@ export const ConversationScreen = ({ route, navigation }) => {
       timestamp: new Date().toISOString(),
     };
 
-    setMessages([...messages, newMessage]);
+    // Update messages
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
     setInputText('');
+    
+    // Update conversation data
+    setConversationData(prev => ({
+      ...prev,
+      lastInteraction: new Date().toISOString()
+    }));
+    
+    // Simulate getting a badge after sending a message (in a real app this would be based on AI analysis)
+    if (updatedMessages.length === 3 && !conversationData.earnedBadges.includes('QUICK_RESPONDER')) {
+      setTimeout(() => {
+        addBadge('QUICK_RESPONDER');
+      }, 1000);
+    } else if (updatedMessages.length === 6 && !conversationData.earnedBadges.includes('DEEP_DIVER')) {
+      setTimeout(() => {
+        addBadge('DEEP_DIVER');
+      }, 1000);
+    }
+  };
+  
+  // Add a badge to the conversation
+  const addBadge = (badgeType) => {
+    if (!conversationData.earnedBadges.includes(badgeType)) {
+      setConversationData(prev => ({
+        ...prev,
+        earnedBadges: [...prev.earnedBadges, badgeType]
+      }));
+    }
+  };
+  
+  // Update the conversation stage
+  const updateStage = (stage) => {
+    setConversationData(prev => ({
+      ...prev,
+      currentStage: stage,
+      // When advancing stages, update star rating too
+      starRating: stage === 'VOICE' ? 2 : stage === 'VIDEO' ? 3 : stage === 'MEETING' ? 4 : 1
+    }));
   };
 
   // Format timestamp to a readable format
@@ -149,6 +221,31 @@ export const ConversationScreen = ({ route, navigation }) => {
   const goBack = () => {
     navigation.goBack();
   };
+  
+  // Check if user can progress to the next stage
+  const canProgressToVoice = conversationData.earnedBadges.length >= 3 && conversationData.hoursRemaining <= 48;
+  const canProgressToVideo = conversationData.earnedBadges.length >= 5 && conversationData.starRating >= 2;
+  const canProgressToMeeting = conversationData.earnedBadges.length >= 8 && conversationData.starRating >= 4;
+  
+  // Render badges earned
+  const renderBadges = () => {
+    return (
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.badgesContainer}
+      >
+        {conversationData.earnedBadges.map((badge, index) => (
+          <ConversationBadge 
+            key={index} 
+            type={badge} 
+            size="small" 
+            showLabel={true} 
+          />
+        ))}
+      </ScrollView>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -182,6 +279,55 @@ export const ConversationScreen = ({ route, navigation }) => {
         </Text>
       </View>
       
+      <ConversationProgressBar 
+        stage={conversationData.currentStage}
+        startTime={conversationData.startTime}
+        hoursRemaining={conversationData.hoursRemaining}
+        earnedBadges={conversationData.earnedBadges.length}
+        totalRequiredBadges={8}
+      />
+      
+      {/* Badges section */}
+      <View style={styles.badgesSection}>
+        <Text style={styles.badgesTitle}>Earned Badges</Text>
+        {renderBadges()}
+      </View>
+      
+      {/* Star rating */}
+      <View style={styles.ratingContainer}>
+        <StarRating rating={conversationData.starRating} showLabel={true} />
+      </View>
+      
+      {/* Call to action buttons based on stage */}
+      <View style={styles.stageActionsContainer}>
+        {conversationData.currentStage === 'TEXT' && (
+          <StageActionButton 
+            type="VOICE_CALL" 
+            enabled={canProgressToVoice}
+            pulsing={canProgressToVoice}
+            onPress={() => updateStage('VOICE')}
+          />
+        )}
+        
+        {conversationData.currentStage === 'VOICE' && (
+          <StageActionButton 
+            type="VIDEO_CALL" 
+            enabled={canProgressToVideo}
+            pulsing={canProgressToVideo}
+            onPress={() => updateStage('VIDEO')}
+          />
+        )}
+        
+        {conversationData.currentStage === 'VIDEO' && (
+          <StageActionButton 
+            type="SUGGEST_MEETING" 
+            enabled={canProgressToMeeting}
+            pulsing={canProgressToMeeting}
+            onPress={() => updateStage('MEETING')}
+          />
+        )}
+      </View>
+      
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -201,20 +347,20 @@ export const ConversationScreen = ({ route, navigation }) => {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
+          placeholder="Type a message..."
           value={inputText}
           onChangeText={setInputText}
-          placeholder="Type a message..."
           multiline
         />
-        <TouchableOpacity
+        <TouchableOpacity 
           style={[
             styles.sendButton,
-            inputText.trim() === '' && styles.disabledSendButton
+            !inputText.trim() && styles.sendButtonDisabled
           ]}
+          disabled={!inputText.trim()}
           onPress={sendMessage}
-          disabled={inputText.trim() === ''}
         >
-          <Text style={styles.sendButtonText}>Send</Text>
+          <Text style={styles.sendButtonText}>→</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -292,6 +438,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
+  badgesSection: {
+    padding: 12,
+  },
+  badgesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+    marginBottom: 8,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    paddingVertical: 4,
+  },
+  ratingContainer: {
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
+  stageActionsContainer: {
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
   messagesContainer: {
     padding: 16,
     paddingBottom: 24,
@@ -329,13 +496,31 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   timestamp: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#9CA3AF',
     marginTop: 4,
-    alignSelf: 'flex-end',
+  },
+  emptyChat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyChatTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  emptyChatText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: '80%',
   },
   inputContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -345,42 +530,27 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 20,
+    borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
     maxHeight: 100,
   },
   sendButton: {
-    marginLeft: 12,
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    width: 40,
+    height: 40,
     borderRadius: 20,
+    backgroundColor: '#8B5CF6',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 12,
   },
-  disabledSendButton: {
-    backgroundColor: '#E5E7EB',
+  sendButtonDisabled: {
+    backgroundColor: '#D1D5DB',
   },
   sendButtonText: {
     color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  emptyChat: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyChatTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  emptyChatText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
   },
 }); 
