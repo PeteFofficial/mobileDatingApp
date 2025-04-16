@@ -10,6 +10,8 @@ import {
   Platform,
   Image,
   ScrollView,
+  Keyboard,
+  Animated,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ConversationProgressBar } from '../../components/ConversationProgressBar';
@@ -111,8 +113,26 @@ const DEMO_CONVERSATIONS = {
 };
 
 export const ConversationScreen = ({ route, navigation }) => {
-  const { matchId } = route.params || { matchId: '1' }; // Default to first match for demo
-  const match = DEMO_USERS[matchId] || DEMO_USERS['1']; // Fallback to first demo user if match not found
+  // Check if route.params exists, and provide a default matchId if not
+  const { matchId } = route?.params || { matchId: '1' };
+  
+  // Ensure we have a valid matchId and provide fallback to first demo user
+  const match = DEMO_USERS[matchId] || DEMO_USERS['1'];
+  
+  // Ensure we've loaded correctly before rendering
+  if (!match) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Could not load conversation</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   
   const [messages, setMessages] = useState(DEMO_MESSAGES[matchId] || []);
   const [inputText, setInputText] = useState('');
@@ -136,6 +156,8 @@ export const ConversationScreen = ({ route, navigation }) => {
   });
   
   const [showStagePrompt, setShowStagePrompt] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const topInfoHeight = useRef(new Animated.Value(1)).current; // 1 = full height, 0 = minimized
   
   const flatListRef = useRef(null);
 
@@ -165,6 +187,38 @@ export const ConversationScreen = ({ route, navigation }) => {
       setShowStagePrompt(true);
     }
   }, [messages, conversationData]);
+  
+  // Add keyboard event listeners to minimize/maximize top info
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setKeyboardVisible(true);
+        Animated.timing(topInfoHeight, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: false,
+        }).start();
+      }
+    );
+    
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        Animated.timing(topInfoHeight, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: false,
+        }).start();
+      }
+    );
+    
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
 
   // Send a new message
   const sendMessage = () => {
@@ -352,6 +406,14 @@ export const ConversationScreen = ({ route, navigation }) => {
     );
   };
 
+  // Calculate the animated height for the top info sections
+  const infoMaxHeight = 300; // Maximum height in pixels for all the top information
+  const minInfoHeight = 80; // Minimum height when keyboard is up
+  const animatedHeight = topInfoHeight.interpolate({
+    inputRange: [0, 1],
+    outputRange: [minInfoHeight, infoMaxHeight]
+  });
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -384,79 +446,95 @@ export const ConversationScreen = ({ route, navigation }) => {
         </Text>
       </View>
       
-      <ConversationProgressBar 
-        stage={conversationData.currentStage}
-        startTime={conversationData.startTime}
-        hoursElapsed={conversationData.hoursElapsed}
-        earnedBadges={conversationData.earnedBadges.length}
-        totalRequiredBadges={8}
-      />
-      
-      {/* Badges section */}
-      <View style={styles.badgesSection}>
-        <Text style={styles.badgesTitle}>Earned Badges</Text>
-        {renderBadges()}
-      </View>
-      
-      {/* Star rating */}
-      <View style={styles.ratingContainer}>
-        <StarRating rating={conversationData.starRating} showLabel={true} />
-      </View>
-      
-      {/* Stage suggestion prompt */}
-      {showStagePrompt && (
-        <View style={styles.stagePrompt}>
-          <Text style={styles.stagePromptText}>{getStagePrompt()}</Text>
-          <View style={styles.stagePromptButtons}>
-            <TouchableOpacity
-              style={styles.stagePromptButton}
-              onPress={() => {
-                const nextStage = conversationData.currentStage === 'TEXT' ? 'VOICE' : 
-                                 conversationData.currentStage === 'VOICE' ? 'VIDEO' : 'MEETING';
-                updateStage(nextStage);
-              }}
-            >
-              <Text style={styles.stagePromptButtonText}>Let's do it!</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.stagePromptButton, styles.stagePromptButtonSecondary]}
-              onPress={() => requestExtension()}
-            >
-              <Text style={styles.stagePromptButtonTextSecondary}>Need more time</Text>
-            </TouchableOpacity>
-          </View>
+      <Animated.View style={[styles.topInfoContainer, { maxHeight: animatedHeight }]}>
+        {/* Touchable area to expand/collapse manually */}
+        <TouchableOpacity 
+          style={styles.expandCollapseBar}
+          onPress={() => {
+            Animated.timing(topInfoHeight, {
+              toValue: topInfoHeight._value === 0 ? 1 : 0,
+              duration: 250,
+              useNativeDriver: false,
+            }).start();
+          }}
+        >
+          <View style={styles.expandCollapseHandle} />
+        </TouchableOpacity>
+        
+        <ConversationProgressBar 
+          stage={conversationData.currentStage}
+          startTime={conversationData.startTime}
+          hoursElapsed={conversationData.hoursElapsed}
+          earnedBadges={conversationData.earnedBadges.length}
+          totalRequiredBadges={8}
+        />
+        
+        {/* Badges section */}
+        <View style={styles.badgesSection}>
+          <Text style={styles.badgesTitle}>Earned Badges</Text>
+          {renderBadges()}
         </View>
-      )}
-      
-      {/* Call to action buttons based on stage */}
-      <View style={styles.stageActionsContainer}>
-        {conversationData.currentStage === 'TEXT' && (
-          <StageActionButton 
-            type="VOICE_CALL" 
-            enabled={canProgressToVoice}
-            pulsing={canProgressToVoice}
-            onPress={() => updateStage('VOICE')}
-          />
+        
+        {/* Star rating */}
+        <View style={styles.ratingContainer}>
+          <StarRating rating={conversationData.starRating} showLabel={true} />
+        </View>
+        
+        {/* Stage suggestion prompt */}
+        {showStagePrompt && (
+          <View style={styles.stagePrompt}>
+            <Text style={styles.stagePromptText}>{getStagePrompt()}</Text>
+            <View style={styles.stagePromptButtons}>
+              <TouchableOpacity
+                style={styles.stagePromptButton}
+                onPress={() => {
+                  const nextStage = conversationData.currentStage === 'TEXT' ? 'VOICE' : 
+                                  conversationData.currentStage === 'VOICE' ? 'VIDEO' : 'MEETING';
+                  updateStage(nextStage);
+                }}
+              >
+                <Text style={styles.stagePromptButtonText}>Let's do it!</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.stagePromptButton, styles.stagePromptButtonSecondary]}
+                onPress={() => requestExtension()}
+              >
+                <Text style={styles.stagePromptButtonTextSecondary}>Need more time</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
         
-        {conversationData.currentStage === 'VOICE' && (
-          <StageActionButton 
-            type="VIDEO_CALL" 
-            enabled={canProgressToVideo}
-            pulsing={canProgressToVideo}
-            onPress={() => updateStage('VIDEO')}
-          />
-        )}
-        
-        {conversationData.currentStage === 'VIDEO' && (
-          <StageActionButton 
-            type="SUGGEST_MEETING" 
-            enabled={canProgressToMeeting}
-            pulsing={canProgressToMeeting}
-            onPress={() => updateStage('MEETING')}
-          />
-        )}
-      </View>
+        {/* Call to action buttons based on stage */}
+        <View style={styles.stageActionsContainer}>
+          {conversationData.currentStage === 'TEXT' && (
+            <StageActionButton 
+              type="VOICE_CALL" 
+              enabled={canProgressToVoice}
+              pulsing={canProgressToVoice}
+              onPress={() => updateStage('VOICE')}
+            />
+          )}
+          
+          {conversationData.currentStage === 'VOICE' && (
+            <StageActionButton 
+              type="VIDEO_CALL" 
+              enabled={canProgressToVideo}
+              pulsing={canProgressToVideo}
+              onPress={() => updateStage('VIDEO')}
+            />
+          )}
+          
+          {conversationData.currentStage === 'VIDEO' && (
+            <StageActionButton 
+              type="SUGGEST_MEETING" 
+              enabled={canProgressToMeeting}
+              pulsing={canProgressToMeeting}
+              onPress={() => updateStage('MEETING')}
+            />
+          )}
+        </View>
+      </Animated.View>
       
       <FlatList
         ref={flatListRef}
@@ -567,6 +645,20 @@ const styles = StyleSheet.create({
     color: '#5B21B6',
     fontSize: 12,
     fontWeight: '500',
+  },
+  topInfoContainer: {
+    overflow: 'hidden',
+  },
+  expandCollapseBar: {
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandCollapseHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
   },
   badgesSection: {
     padding: 12,
@@ -727,5 +819,16 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontSize: 14,
     fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
 }); 

@@ -34,7 +34,7 @@ export const MessagesScreen = ({ navigation }) => {
   const renderConversation = ({ item }) => (
     <TouchableOpacity 
       style={styles.conversationItem}
-      onPress={() => navigation.navigate('Conversation', { match: item })}
+      onPress={() => navigation.navigate('Conversation', { matchId: item.id })}
     >
       <Image source={{ uri: item.image }} style={styles.avatar} />
       <View style={styles.conversationContent}>
