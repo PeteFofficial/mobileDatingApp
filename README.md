@@ -32,21 +32,26 @@ MeaningfulDates solves these problems by:
 - **Values Alignment**: Political views, religious beliefs, family planning
 - All preferences weighted by importance to the user
 
-### 3-Day Connection Journey
+### Research-Backed Conversation Progression
 - **Stage-Based Progression**: Text Chat → Voice Call → Video Call → Real-World Meeting
+- **Science-Based Timeframes**:
+  - Text Chat: 24-48 hours (prevents "small talk fatigue")
+  - Voice Call: By day 3 (builds vocal familiarity)
+  - Video Call: Day 4-5 (adds visual cues)
+  - Meeting: Within 7 days (longer delays reduce meeting likelihood)
 - **Gamified Engagement Metrics**:
   - Conversation Badges: Deep Diver, Laughter Connection, Quick Responder, Shared Interest, Vulnerability Moment
   - Star Rating System: progressing from basic connection to meeting suggestion
-- **Smart Time Management**:
-  - 72-Hour Clock: Starts at first message
-  - Progress Bar: Shows time remaining and current stage
-  - Grace Period: 24-hour extension available if both users agree
+- **Flexible Progression**:
+  - Progressive nudges rather than hard deadlines
+  - Mutual extension option when more time is needed
+  - Natural progression based on conversation quality
 
 ### One-at-a-Time Conversations
 - Multiple matches stored in a "waiting area" queue
 - Only one active conversation permitted
 - Next match selected when current conversation ends or mutual agreement to move on
-- Structured conversation stages with gentle time limits (messaging → phone → meeting)
+- Structured conversation stages with research-based timeframes
 - Mutual opt-out option if both users agree the match isn't working
 
 ### Premium Experience
@@ -57,12 +62,12 @@ MeaningfulDates solves these problems by:
 
 ## Stage Unlock Requirements
 
-| Stage | Requirements | UI Elements |
-|-------|--------------|-------------|
-| Text | Initial connection | Basic chat interface |
-| Voice | 3 badges + 48h elapsed | Phone icon appears |
-| Video | 5 badges + ★★ rating | Video button pulses |
-| Meeting | 8 badges + mutual ★★★★ rating | "Suggest Meeting" CTA |
+| Stage | Requirements | Optimal Timeframe | UI Elements |
+|-------|--------------|-------------------|-------------|
+| Text | Initial connection | 24-48 hours | Basic chat interface |
+| Voice | 3+ badges + 24h elapsed | Day 2-3 | Phone icon, nudge prompt |
+| Video | 5+ badges + voice call completed | Day 4-5 | Video button, stage progress markers |
+| Meeting | 7+ badges + ★★★ rating + video completed | Day 5-7 | "Suggest Meeting" CTA, celebration |
 
 ## Current Implementation Status
 
@@ -75,7 +80,7 @@ The app is currently in active development with the following features implement
 - Filters screen for preference-based matching (age, distance, interests, gender preference, relationship goals)
 - Matches screen to view current matches
 - Messages screen for conversation overview
-- Conversation screen for one-on-one chat with 3-day journey implementation
+- Conversation screen with research-backed progression system
 - Conversation progress tracking with badges and stage progression
 - Profile screen with user details and comprehensive settings options
 - Firebase integration for authentication

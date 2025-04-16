@@ -88,19 +88,25 @@ const DEMO_MESSAGES = {
   '4': [],
 };
 
-// Sample conversation data for the 3-day journey
+// Sample conversation data for the research-backed progressive timeframe system
 const DEMO_CONVERSATIONS = {
   '1': {
     matchId: '1',
     users: ['me', '1'],
     startTime: new Date(Date.now() - 86400000).toISOString(), // Started 1 day ago
-    currentStage: 'VOICE', // TEXT, VOICE, VIDEO, MEETING
+    currentStage: 'TEXT', // TEXT, VOICE, VIDEO, MEETING
     earnedBadges: ['DEEP_DIVER', 'SHARED_INTEREST', 'QUICK_RESPONDER'],
     starRating: 2, // 1-4 stars
     lastInteraction: new Date(Date.now() - 72000000).toISOString(), // 20 hours ago
     extensionUsed: false,
     conversationQualityScore: 0.75, // 0-1 score
-    hoursRemaining: 48, // Out of 72 hours
+    hoursElapsed: 24, // Hours since conversation started
+    suggestedNextStage: 'VOICE', // The next recommended stage based on research
+    stageReadiness: {
+      VOICE: 0.7, // 0-1 readiness score
+      VIDEO: 0.2,
+      MEETING: 0.0
+    }
   }
 };
 
@@ -120,8 +126,16 @@ export const ConversationScreen = ({ route, navigation }) => {
     lastInteraction: new Date().toISOString(),
     extensionUsed: false,
     conversationQualityScore: 0,
-    hoursRemaining: 72,
+    hoursElapsed: 0,
+    suggestedNextStage: null,
+    stageReadiness: {
+      VOICE: 0,
+      VIDEO: 0,
+      MEETING: 0
+    }
   });
+  
+  const [showStagePrompt, setShowStagePrompt] = useState(false);
   
   const flatListRef = useRef(null);
 
@@ -130,7 +144,27 @@ export const ConversationScreen = ({ route, navigation }) => {
     if (flatListRef.current && messages.length > 0) {
       flatListRef.current.scrollToEnd({ animated: true });
     }
-  }, [messages]);
+    
+    // Check if it's time to suggest next stage
+    const shouldSuggestVoice = 
+      conversationData.currentStage === 'TEXT' && 
+      conversationData.hoursElapsed >= 24 && 
+      conversationData.earnedBadges.length >= 3;
+      
+    const shouldSuggestVideo = 
+      conversationData.currentStage === 'VOICE' && 
+      conversationData.hoursElapsed >= 72 && 
+      conversationData.earnedBadges.length >= 5;
+      
+    const shouldSuggestMeeting = 
+      conversationData.currentStage === 'VIDEO' && 
+      conversationData.hoursElapsed >= 96 && 
+      conversationData.starRating >= 3;
+      
+    if ((shouldSuggestVoice || shouldSuggestVideo || shouldSuggestMeeting) && !showStagePrompt) {
+      setShowStagePrompt(true);
+    }
+  }, [messages, conversationData]);
 
   // Send a new message
   const sendMessage = () => {
@@ -148,10 +182,15 @@ export const ConversationScreen = ({ route, navigation }) => {
     setMessages(updatedMessages);
     setInputText('');
     
-    // Update conversation data
+    // Update conversation data - calculate hours elapsed since conversation started
+    const startTime = new Date(conversationData.startTime).getTime();
+    const currentTime = new Date().getTime();
+    const hoursElapsed = Math.floor((currentTime - startTime) / (1000 * 60 * 60));
+    
     setConversationData(prev => ({
       ...prev,
-      lastInteraction: new Date().toISOString()
+      lastInteraction: new Date().toISOString(),
+      hoursElapsed: hoursElapsed
     }));
     
     // Simulate getting a badge after sending a message (in a real app this would be based on AI analysis)
@@ -163,6 +202,21 @@ export const ConversationScreen = ({ route, navigation }) => {
       setTimeout(() => {
         addBadge('DEEP_DIVER');
       }, 1000);
+    } else if (updatedMessages.length === 9 && !conversationData.earnedBadges.includes('SHARED_INTEREST')) {
+      // After detecting shared interests in conversation
+      setTimeout(() => {
+        addBadge('SHARED_INTEREST');
+        
+        // Update stage readiness if enough badges are earned
+        if (conversationData.earnedBadges.length >= 2) {
+          updateStageReadiness('VOICE', 0.7);
+        }
+      }, 1000);
+    } else if (updatedMessages.length === 12 && !conversationData.earnedBadges.includes('VULNERABILITY')) {
+      setTimeout(() => {
+        addBadge('VULNERABILITY');
+        updateStageReadiness('VOICE', 0.9); // Very ready for voice after vulnerability
+      }, 1000);
     }
   };
   
@@ -171,8 +225,27 @@ export const ConversationScreen = ({ route, navigation }) => {
     if (!conversationData.earnedBadges.includes(badgeType)) {
       setConversationData(prev => ({
         ...prev,
-        earnedBadges: [...prev.earnedBadges, badgeType]
+        earnedBadges: [...prev.earnedBadges, badgeType],
+        // Update conversation quality score based on badges
+        conversationQualityScore: Math.min(1, prev.conversationQualityScore + 0.15)
       }));
+    }
+  };
+  
+  // Update the stage readiness scores
+  const updateStageReadiness = (stage, score) => {
+    setConversationData(prev => ({
+      ...prev,
+      stageReadiness: {
+        ...prev.stageReadiness,
+        [stage]: score
+      },
+      suggestedNextStage: score > 0.7 ? stage : prev.suggestedNextStage
+    }));
+    
+    // If readiness is very high, show a prompt
+    if (score > 0.7 && !showStagePrompt) {
+      setShowStagePrompt(true);
     }
   };
   
@@ -182,8 +255,20 @@ export const ConversationScreen = ({ route, navigation }) => {
       ...prev,
       currentStage: stage,
       // When advancing stages, update star rating too
-      starRating: stage === 'VOICE' ? 2 : stage === 'VIDEO' ? 3 : stage === 'MEETING' ? 4 : 1
+      starRating: stage === 'VOICE' ? 2 : stage === 'VIDEO' ? 3 : stage === 'MEETING' ? 4 : 1,
+      // Reset stage prompt
+      suggestedNextStage: null
     }));
+    setShowStagePrompt(false);
+  };
+  
+  // Request an extension
+  const requestExtension = () => {
+    setConversationData(prev => ({
+      ...prev,
+      extensionUsed: true
+    }));
+    setShowStagePrompt(false);
   };
 
   // Format timestamp to a readable format
@@ -222,10 +307,30 @@ export const ConversationScreen = ({ route, navigation }) => {
     navigation.goBack();
   };
   
-  // Check if user can progress to the next stage
-  const canProgressToVoice = conversationData.earnedBadges.length >= 3 && conversationData.hoursRemaining <= 48;
-  const canProgressToVideo = conversationData.earnedBadges.length >= 5 && conversationData.starRating >= 2;
-  const canProgressToMeeting = conversationData.earnedBadges.length >= 8 && conversationData.starRating >= 4;
+  // Check if user can progress to the next stage based on research findings
+  const canProgressToVoice = conversationData.hoursElapsed >= 24 && 
+    conversationData.earnedBadges.length >= 3;
+    
+  const canProgressToVideo = conversationData.currentStage === 'VOICE' && 
+    conversationData.hoursElapsed >= 72 && 
+    conversationData.earnedBadges.length >= 5;
+    
+  const canProgressToMeeting = conversationData.currentStage === 'VIDEO' && 
+    conversationData.hoursElapsed >= 96 && 
+    conversationData.earnedBadges.length >= 7 && 
+    conversationData.starRating >= 3;
+  
+  // Generate stage-specific prompt
+  const getStagePrompt = () => {
+    if (conversationData.currentStage === 'TEXT' && canProgressToVoice) {
+      return "You've been texting for 24+ hours and found shared interests! Try a voice call to deepen your connection.";
+    } else if (conversationData.currentStage === 'VOICE' && canProgressToVideo) {
+      return "Your conversations are going well! A video call can help you connect on a deeper level.";
+    } else if (conversationData.currentStage === 'VIDEO' && canProgressToMeeting) {
+      return "You've built a great connection! Consider suggesting a meetup in a safe, public place.";
+    }
+    return "";
+  };
   
   // Render badges earned
   const renderBadges = () => {
@@ -282,7 +387,7 @@ export const ConversationScreen = ({ route, navigation }) => {
       <ConversationProgressBar 
         stage={conversationData.currentStage}
         startTime={conversationData.startTime}
-        hoursRemaining={conversationData.hoursRemaining}
+        hoursElapsed={conversationData.hoursElapsed}
         earnedBadges={conversationData.earnedBadges.length}
         totalRequiredBadges={8}
       />
@@ -297,6 +402,31 @@ export const ConversationScreen = ({ route, navigation }) => {
       <View style={styles.ratingContainer}>
         <StarRating rating={conversationData.starRating} showLabel={true} />
       </View>
+      
+      {/* Stage suggestion prompt */}
+      {showStagePrompt && (
+        <View style={styles.stagePrompt}>
+          <Text style={styles.stagePromptText}>{getStagePrompt()}</Text>
+          <View style={styles.stagePromptButtons}>
+            <TouchableOpacity
+              style={styles.stagePromptButton}
+              onPress={() => {
+                const nextStage = conversationData.currentStage === 'TEXT' ? 'VOICE' : 
+                                 conversationData.currentStage === 'VOICE' ? 'VIDEO' : 'MEETING';
+                updateStage(nextStage);
+              }}
+            >
+              <Text style={styles.stagePromptButtonText}>Let's do it!</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.stagePromptButton, styles.stagePromptButtonSecondary]}
+              onPress={() => requestExtension()}
+            >
+              <Text style={styles.stagePromptButtonTextSecondary}>Need more time</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       
       {/* Call to action buttons based on stage */}
       <View style={styles.stageActionsContainer}>
@@ -338,7 +468,7 @@ export const ConversationScreen = ({ route, navigation }) => {
           <View style={styles.emptyChat}>
             <Text style={styles.emptyChatTitle}>Start the conversation!</Text>
             <Text style={styles.emptyChatText}>
-              Say something interesting to get the conversation flowing.
+              Ask meaningful questions to get to know each other better.
             </Text>
           </View>
         }
@@ -552,5 +682,50 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  stagePrompt: {
+    backgroundColor: '#F0EAFE',
+    marginHorizontal: 10,
+    marginBottom: 10,
+    padding: 16,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8B5CF6',
+  },
+  stagePromptText: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  stagePromptButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  stagePromptButton: {
+    flex: 1,
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  stagePromptButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#8B5CF6',
+    marginRight: 0,
+    marginLeft: 8,
+  },
+  stagePromptButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stagePromptButtonTextSecondary: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 
